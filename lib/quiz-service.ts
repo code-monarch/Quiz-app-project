@@ -108,8 +108,37 @@ export async function getInstructorQuizzes(): Promise<Quiz[]> {
 
 // Get all unique categories
 export async function getCategories() {
-  // For development/preview, return mock categories
-  if (process.env.NODE_ENV === "development" || process.env.VERCEL_ENV === "preview") {
+  const supabase = createClient()
+
+  try {
+    const { data, error } = await supabase.from("quiz_categories").select("name").order("name")
+
+    if (error) {
+      console.error("Error fetching categories:", error)
+      // Fallback to hardcoded categories if there's an error
+      return [
+        "Web Development",
+        "JavaScript",
+        "React",
+        "CSS",
+        "HTML",
+        "Node.js",
+        "TypeScript",
+        "Computer Science",
+        "Data Structures",
+        "Algorithms",
+        "Mathematics",
+        "Science",
+        "History",
+        "English",
+        "Language Arts",
+      ]
+    }
+
+    return data.map((category) => category.name)
+  } catch (error) {
+    console.error("Error fetching categories:", error)
+    // Fallback to hardcoded categories if there's an exception
     return [
       "Web Development",
       "JavaScript",
@@ -127,22 +156,6 @@ export async function getCategories() {
       "English",
       "Language Arts",
     ]
-  }
-
-  const supabase = createClient()
-
-  try {
-    const { data, error } = await supabase.from("quiz_categories").select("name").order("name")
-
-    if (error) {
-      console.error("Error fetching categories:", error)
-      return []
-    }
-
-    return data.map((category) => category.name)
-  } catch (error) {
-    console.error("Error fetching categories:", error)
-    return []
   }
 }
 
@@ -254,6 +267,146 @@ export async function createQuizWithQuestions(quizData: any) {
   }
 
   return quizId
+}
+
+// Update a quiz with questions
+export async function updateQuizWithQuestions(quizId: string, quizData: any) {
+  const supabase = createClient()
+
+  // Get the current user
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+
+  if (!user) {
+    console.log("No authenticated user found, simulating successful quiz update for development")
+    return
+  }
+
+  // Update the quiz
+  const { error: quizError } = await supabase
+    .from("quizzes")
+    .update({
+      title: quizData.title,
+      description: quizData.description,
+      category: quizData.category,
+      cover_image: quizData.cover_image,
+      time_limit: quizData.time_limit,
+      published: quizData.published,
+      archived: quizData.archived || false,
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", quizId)
+
+  if (quizError) {
+    console.error("Error updating quiz:", quizError)
+    throw new Error("Failed to update quiz")
+  }
+
+  // Update quiz settings
+  const { error: settingsError } = await supabase.from("quiz_settings").upsert({
+    quiz_id: quizId,
+    shuffle_questions: quizData.settings.shuffle_questions,
+    shuffle_options: quizData.settings.shuffle_options,
+    show_results: quizData.settings.show_results,
+    allow_retakes: quizData.settings.allow_retakes,
+    max_retakes: quizData.settings.max_retakes,
+    passing_score: quizData.settings.passing_score,
+  })
+
+  if (settingsError) {
+    console.error("Error updating quiz settings:", settingsError)
+    throw new Error("Failed to update quiz settings")
+  }
+
+  // Update questions
+  for (const question of quizData.questions) {
+    if (question.id) {
+      // Update existing question
+      const { error: questionError } = await supabase
+        .from("questions")
+        .update({
+          question_type: question.question_type,
+          question_text: question.question_text,
+          explanation: question.explanation || null,
+          points: question.points,
+          position: question.position,
+        })
+        .eq("id", question.id)
+
+      if (questionError) {
+        console.error("Error updating question:", questionError)
+        throw new Error("Failed to update question")
+      }
+
+      // Update options
+      for (const option of question.options) {
+        if (option.id) {
+          // Update existing option
+          const { error: optionError } = await supabase
+            .from("question_options")
+            .update({
+              option_text: option.option_text,
+              is_correct: option.is_correct,
+              position: option.position,
+            })
+            .eq("id", option.id)
+
+          if (optionError) {
+            console.error("Error updating option:", optionError)
+            throw new Error("Failed to update option")
+          }
+        } else {
+          // Create new option
+          const { error: optionError } = await supabase.from("question_options").insert({
+            question_id: question.id,
+            option_text: option.option_text,
+            is_correct: option.is_correct,
+            position: option.position,
+          })
+
+          if (optionError) {
+            console.error("Error creating option:", optionError)
+            throw new Error("Failed to create option")
+          }
+        }
+      }
+    } else {
+      // Create new question
+      const { data: newQuestion, error: questionError } = await supabase
+        .from("questions")
+        .insert({
+          quiz_id: quizId,
+          question_type: question.question_type,
+          question_text: question.question_text,
+          explanation: question.explanation || null,
+          points: question.points,
+          position: question.position,
+        })
+        .select("id")
+        .single()
+
+      if (questionError) {
+        console.error("Error creating question:", questionError)
+        throw new Error("Failed to create question")
+      }
+
+      // Create options
+      for (const option of question.options) {
+        const { error: optionError } = await supabase.from("question_options").insert({
+          question_id: newQuestion.id,
+          option_text: option.option_text,
+          is_correct: option.is_correct,
+          position: option.position,
+        })
+
+        if (optionError) {
+          console.error("Error creating option:", optionError)
+          throw new Error("Failed to create option")
+        }
+      }
+    }
+  }
 }
 
 // Update an existing quiz
@@ -1503,37 +1656,4 @@ export async function createQuestion(quizId: string, questionData: any) {
   }
 
   return data.id
-}
-
-export async function updateQuizWithQuestions(quizId: string, quizData: any) {
-  const supabase = createClient()
-
-  // Get the current user
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-
-  if (!user) {
-    console.log("No authenticated user found, simulating successful quiz update for development")
-    return
-  }
-
-  // Update the quiz
-  const { error } = await supabase
-    .from("quizzes")
-    .update({
-      title: quizData.title,
-      description: quizData.description,
-      category: quizData.category,
-      cover_image: quizData.cover_image,
-      time_limit: quizData.time_limit,
-      published: quizData.published,
-      updated_at: new Date().toISOString(),
-    })
-    .eq("id", quizId)
-
-  if (error) {
-    console.error("Error updating quiz:", error)
-    throw new Error("Failed to update quiz")
-  }
 }

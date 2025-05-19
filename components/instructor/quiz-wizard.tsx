@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { toast } from "sonner"
-import { ChevronLeft, ChevronRight, Save } from "lucide-react"
+import { ChevronLeft, ChevronRight, Save, Loader2 } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import { Card, CardContent } from "@/components/ui/card"
@@ -376,7 +376,10 @@ export function QuizWizard({ categories, initialData, isEditing = false }: QuizW
             ) : (
               <Button onClick={handleSubmit} disabled={isSubmitting}>
                 {isSubmitting ? (
-                  <>{isEditing ? "Updating Quiz..." : "Creating Quiz..."}</>
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    {isEditing ? "Updating Quiz..." : "Creating Quiz..."}
+                  </>
                 ) : (
                   <>
                     <Save className="mr-2 h-4 w-4" />

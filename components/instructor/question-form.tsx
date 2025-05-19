@@ -13,10 +13,10 @@ import { Button } from "@/components/ui/button"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
 import { Card, CardContent } from "@/components/ui/card"
+import { Label } from "@/components/ui/label"
 
 const questionSchema = z.object({
   question_type: z.enum(["multiple_choice", "true_false", "short_answer", "matching"]),
@@ -31,6 +31,7 @@ const questionSchema = z.object({
       }),
     )
     .optional(),
+  correct_answer: z.enum(["true", "false"]).optional(),
 })
 
 type QuestionFormValues = z.infer<typeof questionSchema>
@@ -56,6 +57,7 @@ export function QuestionForm({ quizId }: QuestionFormProps) {
         { option_text: "", is_correct: false },
         { option_text: "", is_correct: false },
       ],
+      correct_answer: undefined,
     },
   })
 
@@ -71,8 +73,8 @@ export function QuestionForm({ quizId }: QuestionFormProps) {
       if (data.question_type === "true_false") {
         // For true/false questions, create two options: True and False
         processedData.options = [
-          { option_text: "True", is_correct: data.options?.[0]?.is_correct || false },
-          { option_text: "False", is_correct: data.options?.[1]?.is_correct || false },
+          { option_text: "True", is_correct: data.correct_answer === "true" },
+          { option_text: "False", is_correct: data.correct_answer === "false" },
         ]
       } else if (data.question_type === "short_answer") {
         // Short answer questions don't need options
@@ -81,6 +83,9 @@ export function QuestionForm({ quizId }: QuestionFormProps) {
         // Filter out empty options for multiple choice
         processedData.options = data.options?.filter((option) => option.option_text.trim() !== "") || []
       }
+
+      // Remove the correct_answer field as it's not needed in the API
+      delete processedData.correct_answer
 
       await createQuestion(quizId, processedData)
       toast.success("Question added successfully!")
@@ -186,7 +191,7 @@ export function QuestionForm({ quizId }: QuestionFormProps) {
         {questionType === "multiple_choice" && (
           <div className="space-y-4">
             <div className="flex items-center justify-between">
-              <FormLabel className="text-base">Answer Options</FormLabel>
+              <Label className="text-base">Answer Options</Label>
               <Button type="button" variant="outline" size="sm" onClick={addOption}>
                 <Plus className="mr-2 h-4 w-4" />
                 Add Option
@@ -246,41 +251,46 @@ export function QuestionForm({ quizId }: QuestionFormProps) {
         )}
 
         {questionType === "true_false" && (
-          <div className="space-y-4">
-            <FormField
-              control={form.control}
-              name="options.0.is_correct"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Answer</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={(value) => {
-                        form.setValue("options.0.is_correct", value === "true")
-                        form.setValue("options.1.is_correct", value === "false")
-                      }}
-                      defaultValue={field.value ? "true" : "false"}
-                      className="flex flex-col space-y-1"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="true" />
-                        </FormControl>
-                        <FormLabel className="font-normal">True</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="false" />
-                        </FormControl>
-                        <FormLabel className="font-normal">False</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+          <FormField
+            control={form.control}
+            name="correct_answer"
+            render={({ field }) => (
+              <FormItem className="space-y-3">
+                <FormLabel>Answer</FormLabel>
+                <div className="space-y-2">
+                  <div className="flex items-center space-x-2">
+                    <FormControl>
+                      <input
+                        type="radio"
+                        className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                        checked={field.value === "true"}
+                        onChange={() => field.onChange("true")}
+                        id="true-option"
+                      />
+                    </FormControl>
+                    <Label htmlFor="true-option" className="font-normal">
+                      True
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <FormControl>
+                      <input
+                        type="radio"
+                        className="h-4 w-4 border-gray-300 text-primary focus:ring-primary"
+                        checked={field.value === "false"}
+                        onChange={() => field.onChange("false")}
+                        id="false-option"
+                      />
+                    </FormControl>
+                    <Label htmlFor="false-option" className="font-normal">
+                      False
+                    </Label>
+                  </div>
+                </div>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
         )}
 
         <div className="flex justify-end space-x-4">
