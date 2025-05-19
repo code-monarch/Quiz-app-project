@@ -1,6 +1,7 @@
 "use client"
 
 import { useState, useEffect } from "react"
+import { useFormContext } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 import { z } from "zod"
@@ -23,6 +24,7 @@ import {
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 
+// Question schema for validation
 const questionSchema = z.object({
   question_type: z.enum(["multiple-choice", "true-false", "matching", "fill-blank", "short-answer"]),
   question_text: z.string().min(3, { message: "Question text is required" }),
@@ -41,16 +43,20 @@ const questionSchema = z.object({
 type QuestionValues = z.infer<typeof questionSchema>
 
 interface QuizQuestionsStepProps {
-  questions: any[]
   addQuestion: (question: any) => void
   updateQuestion: (index: number, question: any) => void
   removeQuestion: (index: number) => void
 }
 
-export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, removeQuestion }: QuizQuestionsStepProps) {
+export function QuizQuestionsStep({ addQuestion, updateQuestion, removeQuestion }: QuizQuestionsStepProps) {
+  // Access the parent form context
+  const parentForm = useFormContext()
+  const questions = parentForm.watch("questions") || []
+
   const [isDialogOpen, setIsDialogOpen] = useState(false)
   const [editingIndex, setEditingIndex] = useState<number | null>(null)
 
+  // Create a nested form for the question dialog
   const form = useForm<QuestionValues>({
     resolver: zodResolver(questionSchema),
     defaultValues: {
@@ -171,7 +177,7 @@ export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, remo
               Add Question
             </Button>
           </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px]">
+          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto w-[95vw]">
             <DialogHeader>
               <DialogTitle>{editingIndex !== null ? "Edit Question" : "Add New Question"}</DialogTitle>
               <DialogDescription>
@@ -180,8 +186,9 @@ export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, remo
                   : "Create a new question for your quiz. Configure the question type, text, and options."}
               </DialogDescription>
             </DialogHeader>
+            {/* This is a nested form separate from the parent form */}
             <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto">
                 <FormField
                   control={form.control}
                   name="question_type"
@@ -248,7 +255,12 @@ export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, remo
                     <FormItem>
                       <FormLabel>Points</FormLabel>
                       <FormControl>
-                        <Input type="number" min={1} {...field} />
+                        <Input
+                          type="number"
+                          min={1}
+                          {...field}
+                          onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                        />
                       </FormControl>
                       <FormDescription>The number of points this question is worth.</FormDescription>
                       <FormMessage />
@@ -268,7 +280,7 @@ export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, remo
                     </div>
 
                     {form.getValues("options")?.map((_, index) => (
-                      <div key={index} className="flex items-center gap-2">
+                      <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                         <FormField
                           control={form.control}
                           name={`options.${index}.is_correct`}
@@ -304,7 +316,7 @@ export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, remo
                   </div>
                 )}
 
-                <DialogFooter>
+                <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
                   <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
                     Cancel
                   </Button>
@@ -332,7 +344,7 @@ export function QuizQuestionsStep({ questions, addQuestion, updateQuestion, remo
         </div>
       ) : (
         <div className="space-y-4">
-          {questions.map((question, index) => (
+          {questions.map((question: any, index: number) => (
             <Card key={index}>
               <CardHeader className="pb-2">
                 <div className="flex justify-between items-start">

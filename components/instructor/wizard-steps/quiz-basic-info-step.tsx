@@ -1,212 +1,177 @@
 "use client"
 
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { useState } from "react"
+import { useFormContext } from "react-hook-form"
+import { ImageIcon } from "lucide-react"
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Switch } from "@/components/ui/switch"
-
-const quizBasicInfoSchema = z.object({
-  title: z.string().min(3, {
-    message: "Title must be at least 3 characters.",
-  }),
-  description: z.string().optional(),
-  category: z.string().min(1, {
-    message: "Please select a category.",
-  }),
-  cover_image: z.string().url().optional().or(z.literal("")),
-  time_limit: z.coerce.number().int().min(0).optional(),
-  published: z.boolean().default(false),
-})
-
-type QuizBasicInfoValues = z.infer<typeof quizBasicInfoSchema>
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 interface QuizBasicInfoStepProps {
-  quizData: any
-  updateQuizData: (field: string, value: any) => void
   categories: string[]
 }
 
-export function QuizBasicInfoStep({ quizData, updateQuizData, categories }: QuizBasicInfoStepProps) {
-  const form = useForm<QuizBasicInfoValues>({
-    resolver: zodResolver(quizBasicInfoSchema),
-    defaultValues: {
-      title: quizData.title || "",
-      description: quizData.description || "",
-      category: quizData.category || "",
-      cover_image: quizData.cover_image || "",
-      time_limit: quizData.time_limit || 30,
-      published: quizData.published || false,
-    },
-  })
+export function QuizBasicInfoStep({ categories }: QuizBasicInfoStepProps) {
+  // Get form methods from parent context
+  const form = useFormContext()
 
-  function onSubmit(values: QuizBasicInfoValues) {
-    Object.entries(values).forEach(([key, value]) => {
-      updateQuizData(key, value)
-    })
+  // Local state for cover image selection UI
+  const [coverImage, setCoverImage] = useState<string>(form.getValues("cover_image") || "")
+
+  // Handle cover image selection
+  const handleCoverImageSelect = (imageUrl: string) => {
+    setCoverImage(imageUrl)
+    form.setValue("cover_image", imageUrl, { shouldValidate: true, shouldDirty: true })
   }
 
-  // Update the parent component whenever form values change
-  const handleFieldChange = (field: string, value: any) => {
-    updateQuizData(field, value)
-  }
+  // Predefined cover images
+  const coverImages = [
+    "/javascript-code.png",
+    "/react-logo-abstract.png",
+    "/css-code.png",
+    "/html-code-snippet.png",
+    "/quiz-concept.png",
+  ]
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-6">
-            <FormField
-              control={form.control}
-              name="title"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Quiz Title</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="Enter quiz title"
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e)
-                        handleFieldChange("title", e.target.value)
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <FormField
+          control={form.control}
+          name="title"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium">Quiz Title</FormLabel>
+              <FormControl>
+                <Input placeholder="Enter quiz title" {...field} />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Enter a description for your quiz"
-                      className="min-h-[120px]"
-                      {...field}
-                      value={field.value || ""}
-                      onChange={(e) => {
-                        field.onChange(e)
-                        handleFieldChange("description", e.target.value)
-                      }}
-                    />
-                  </FormControl>
-                  <FormDescription>Provide a brief description of what this quiz covers.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <FormField
+          control={form.control}
+          name="description"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium">Description</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder="Enter a description for your quiz"
+                  className="min-h-[100px]"
+                  {...field}
+                  value={field.value || ""}
+                />
+              </FormControl>
+              <FormDescription>Provide a brief description of what this quiz covers.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-            <FormField
-              control={form.control}
-              name="category"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Category</FormLabel>
-                  <Select
-                    onValueChange={(value) => {
-                      field.onChange(value)
-                      handleFieldChange("category", value)
-                    }}
-                    defaultValue={field.value}
-                  >
-                    <FormControl>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select a category" />
-                      </SelectTrigger>
-                    </FormControl>
-                    <SelectContent>
-                      {categories.map((category) => (
-                        <SelectItem key={category} value={category}>
-                          {category}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
+        <FormField
+          control={form.control}
+          name="category"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium">Category</FormLabel>
+              <Select onValueChange={field.onChange} defaultValue={field.value} value={field.value}>
+                <FormControl>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a category" />
+                  </SelectTrigger>
+                </FormControl>
+                <SelectContent>
+                  {categories.map((category) => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-          <div className="space-y-6">
-            <FormField
-              control={form.control}
-              name="cover_image"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Cover Image URL</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="https://example.com/image.jpg"
-                      {...field}
-                      value={field.value || ""}
-                      onChange={(e) => {
-                        field.onChange(e)
-                        handleFieldChange("cover_image", e.target.value)
-                      }}
-                    />
-                  </FormControl>
-                  <FormDescription>Provide a URL for the quiz cover image (optional).</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <FormField
+          control={form.control}
+          name="time_limit"
+          render={({ field }) => (
+            <FormItem>
+              <FormLabel className="text-base font-medium">Time Limit (minutes)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  min={0}
+                  placeholder="Enter time limit in minutes (0 for no limit)"
+                  {...field}
+                  onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 0)}
+                  value={field.value}
+                />
+              </FormControl>
+              <FormDescription>Set to 0 for no time limit.</FormDescription>
+              <FormMessage />
+            </FormItem>
+          )}
+        />
 
-            <FormField
-              control={form.control}
-              name="time_limit"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Time Limit (minutes)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e)
-                        handleFieldChange("time_limit", Number.parseInt(e.target.value))
-                      }}
-                    />
-                  </FormControl>
-                  <FormDescription>Set to 0 for no time limit.</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+        <FormField
+          control={form.control}
+          name="published"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base font-medium">Published</FormLabel>
+                <FormDescription>
+                  When published, this quiz will be visible to students. You can change this later.
+                </FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+      </div>
 
-            <FormField
-              control={form.control}
-              name="published"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Publish Quiz</FormLabel>
-                    <FormDescription>Make this quiz available to students immediately.</FormDescription>
-                  </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={(checked) => {
-                        field.onChange(checked)
-                        handleFieldChange("published", checked)
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+      <div className="space-y-4">
+        <div>
+          <h3 className="text-lg font-medium mb-2">Cover Image</h3>
+          <p className="text-sm text-muted-foreground mb-4">Select a cover image for your quiz.</p>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-4">
+            {coverImages.map((image, index) => (
+              <div
+                key={index}
+                className={`relative aspect-video rounded-md overflow-hidden border-2 cursor-pointer transition-all ${
+                  coverImage === image ? "border-primary ring-2 ring-primary ring-opacity-50" : "border-border"
+                }`}
+                onClick={() => handleCoverImageSelect(image)}
+              >
+                <img
+                  src={image || "/placeholder.svg"}
+                  alt={`Cover option ${index + 1}`}
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            ))}
+            <div
+              className={`relative aspect-video rounded-md overflow-hidden border-2 border-dashed flex items-center justify-center cursor-pointer ${
+                coverImage === "" ? "border-primary bg-primary/5" : "border-border"
+              }`}
+              onClick={() => handleCoverImageSelect("")}
+            >
+              <div className="flex flex-col items-center text-muted-foreground">
+                <ImageIcon className="h-8 w-8 mb-1" />
+                <span className="text-xs">No Image</span>
+              </div>
+            </div>
           </div>
         </div>
-      </form>
-    </Form>
+      </div>
+    </div>
   )
 }

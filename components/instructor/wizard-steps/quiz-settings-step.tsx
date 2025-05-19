@@ -1,219 +1,143 @@
 "use client"
 
-import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
-import { z } from "zod"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Input } from "@/components/ui/input"
+import { useFormContext } from "react-hook-form"
+import { FormControl, FormDescription, FormField, FormItem, FormLabel } from "@/components/ui/form"
 import { Switch } from "@/components/ui/switch"
+import { Input } from "@/components/ui/input"
+import { Slider } from "@/components/ui/slider"
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 
-const quizSettingsSchema = z.object({
-  shuffle_questions: z.boolean().default(true),
-  shuffle_options: z.boolean().default(true),
-  show_results: z.enum(["immediately", "after-submission", "after-due-date"]).default("after-submission"),
-  allow_retakes: z.boolean().default(true),
-  max_retakes: z.coerce.number().int().min(0).default(3),
-  passing_score: z.coerce.number().int().min(0).max(100).default(70),
-})
+type QuizSettingsStepProps = {}
 
-type QuizSettingsValues = z.infer<typeof quizSettingsSchema>
-
-interface QuizSettingsStepProps {
-  settings: any
-  updateSettings: (settings: any) => void
-}
-
-export function QuizSettingsStep({ settings, updateSettings }: QuizSettingsStepProps) {
-  const form = useForm<QuizSettingsValues>({
-    resolver: zodResolver(quizSettingsSchema),
-    defaultValues: {
-      shuffle_questions: settings.shuffle_questions,
-      shuffle_options: settings.shuffle_options,
-      show_results: settings.show_results,
-      allow_retakes: settings.allow_retakes,
-      max_retakes: settings.max_retakes,
-      passing_score: settings.passing_score,
-    },
-  })
-
-  const allowRetakes = form.watch("allow_retakes")
-
-  function onSubmit(values: QuizSettingsValues) {
-    updateSettings(values)
-  }
-
-  // Update the parent component whenever form values change
-  const handleFieldChange = (field: string, value: any) => {
-    updateSettings({ [field]: value })
-  }
+export function QuizSettingsStep({}: QuizSettingsStepProps) {
+  // Access form from context
+  const form = useFormContext()
 
   return (
-    <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
-        <div className="grid gap-6 md:grid-cols-2">
-          <div className="space-y-6">
-            <FormField
-              control={form.control}
-              name="shuffle_questions"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Shuffle Questions</FormLabel>
-                    <FormDescription>Randomize the order of questions for each student</FormDescription>
+    <div className="space-y-6">
+      <div className="space-y-4">
+        <FormField
+          control={form.control}
+          name="settings.shuffle_questions"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base font-medium">Shuffle Questions</FormLabel>
+                <FormDescription>Randomize the order of questions for each student.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="settings.shuffle_options"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base font-medium">Shuffle Answer Options</FormLabel>
+                <FormDescription>Randomize the order of answer options for each question.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        <FormField
+          control={form.control}
+          name="settings.show_results"
+          render={({ field }) => (
+            <FormItem className="space-y-3">
+              <FormLabel className="text-base font-medium">Show Results</FormLabel>
+              <FormControl>
+                <RadioGroup onValueChange={field.onChange} value={field.value} className="space-y-2">
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="immediately" id="show_results_immediately" />
+                    <FormLabel htmlFor="show_results_immediately" className="font-normal">
+                      Immediately after each question
+                    </FormLabel>
                   </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={(checked) => {
-                        field.onChange(checked)
-                        handleFieldChange("shuffle_questions", checked)
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="shuffle_options"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Shuffle Options</FormLabel>
-                    <FormDescription>Randomize the order of answer options for each question</FormDescription>
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="after-submission" id="show_results_after_submission" />
+                    <FormLabel htmlFor="show_results_after_submission" className="font-normal">
+                      After quiz submission
+                    </FormLabel>
                   </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={(checked) => {
-                        field.onChange(checked)
-                        handleFieldChange("shuffle_options", checked)
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="show_results"
-              render={({ field }) => (
-                <FormItem className="space-y-3">
-                  <FormLabel>Show Results</FormLabel>
-                  <FormControl>
-                    <RadioGroup
-                      onValueChange={(value) => {
-                        field.onChange(value)
-                        handleFieldChange("show_results", value)
-                      }}
-                      defaultValue={field.value}
-                      className="flex flex-col space-y-1"
-                    >
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="immediately" />
-                        </FormControl>
-                        <FormLabel className="font-normal">Immediately after each question</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="after-submission" />
-                        </FormControl>
-                        <FormLabel className="font-normal">After quiz submission</FormLabel>
-                      </FormItem>
-                      <FormItem className="flex items-center space-x-3 space-y-0">
-                        <FormControl>
-                          <RadioGroupItem value="after-due-date" />
-                        </FormControl>
-                        <FormLabel className="font-normal">After due date</FormLabel>
-                      </FormItem>
-                    </RadioGroup>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-          </div>
-
-          <div className="space-y-6">
-            <FormField
-              control={form.control}
-              name="passing_score"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Passing Score (%)</FormLabel>
-                  <FormControl>
-                    <Input
-                      type="number"
-                      min={0}
-                      max={100}
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e)
-                        handleFieldChange("passing_score", Number.parseInt(e.target.value))
-                      }}
-                    />
-                  </FormControl>
-                  <FormDescription>Minimum percentage required to pass the quiz</FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-
-            <FormField
-              control={form.control}
-              name="allow_retakes"
-              render={({ field }) => (
-                <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
-                  <div className="space-y-0.5">
-                    <FormLabel className="text-base">Allow Retakes</FormLabel>
-                    <FormDescription>Let students retake the quiz if they don't pass</FormDescription>
+                  <div className="flex items-center space-x-3">
+                    <RadioGroupItem value="after-due-date" id="show_results_after_due_date" />
+                    <FormLabel htmlFor="show_results_after_due_date" className="font-normal">
+                      After due date
+                    </FormLabel>
                   </div>
-                  <FormControl>
-                    <Switch
-                      checked={field.value}
-                      onCheckedChange={(checked) => {
-                        field.onChange(checked)
-                        handleFieldChange("allow_retakes", checked)
-                      }}
-                    />
-                  </FormControl>
-                </FormItem>
-              )}
-            />
+                </RadioGroup>
+              </FormControl>
+            </FormItem>
+          )}
+        />
 
-            {allowRetakes && (
-              <FormField
-                control={form.control}
-                name="max_retakes"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Maximum Retakes</FormLabel>
-                    <FormControl>
-                      <Input
-                        type="number"
-                        min={0}
-                        {...field}
-                        onChange={(e) => {
-                          field.onChange(e)
-                          handleFieldChange("max_retakes", Number.parseInt(e.target.value))
-                        }}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Maximum number of times a student can retake the quiz (0 for unlimited)
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+        <FormField
+          control={form.control}
+          name="settings.allow_retakes"
+          render={({ field }) => (
+            <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+              <div className="space-y-0.5">
+                <FormLabel className="text-base font-medium">Allow Retakes</FormLabel>
+                <FormDescription>Let students retake the quiz if they want to improve their score.</FormDescription>
+              </div>
+              <FormControl>
+                <Switch checked={field.value} onCheckedChange={field.onChange} />
+              </FormControl>
+            </FormItem>
+          )}
+        />
+
+        {form.watch("settings.allow_retakes") && (
+          <FormField
+            control={form.control}
+            name="settings.max_retakes"
+            render={({ field }) => (
+              <FormItem className="space-y-2">
+                <FormLabel className="text-base font-medium">Maximum Retakes</FormLabel>
+                <FormControl>
+                  <Input
+                    type="number"
+                    min={1}
+                    {...field}
+                    onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                  />
+                </FormControl>
+                <FormDescription>Maximum number of times a student can retake this quiz.</FormDescription>
+              </FormItem>
             )}
-          </div>
-        </div>
-      </form>
-    </Form>
+          />
+        )}
+
+        <FormField
+          control={form.control}
+          name="settings.passing_score"
+          render={({ field }) => (
+            <FormItem className="space-y-2">
+              <FormLabel className="text-base font-medium">Passing Score: {field.value}%</FormLabel>
+              <FormControl>
+                <Slider
+                  min={0}
+                  max={100}
+                  step={5}
+                  defaultValue={[field.value]}
+                  value={[field.value]}
+                  onValueChange={(values) => field.onChange(values[0])}
+                />
+              </FormControl>
+              <FormDescription>Minimum percentage required to pass the quiz.</FormDescription>
+            </FormItem>
+          )}
+        />
+      </div>
+    </div>
   )
 }
