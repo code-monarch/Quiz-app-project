@@ -3,12 +3,12 @@
 import { useState, useEffect } from "react"
 import { useFormContext } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
-import { useForm } from "react-hook-form"
+import { useForm, FormProvider } from "react-hook-form"
 import { z } from "zod"
 import { Plus, Trash, Edit } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
-import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
+import { FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
@@ -20,7 +20,6 @@ import {
   DialogFooter,
   DialogHeader,
   DialogTitle,
-  DialogTrigger,
 } from "@/components/ui/dialog"
 import { Checkbox } from "@/components/ui/checkbox"
 
@@ -48,16 +47,22 @@ interface QuizQuestionsStepProps {
   removeQuestion: (index: number) => void
 }
 
-export function QuizQuestionsStep({ addQuestion, updateQuestion, removeQuestion }: QuizQuestionsStepProps) {
-  // Access the parent form context
-  const parentForm = useFormContext()
-  const questions = parentForm.watch("questions") || []
-
-  const [isDialogOpen, setIsDialogOpen] = useState(false)
-  const [editingIndex, setEditingIndex] = useState<number | null>(null)
-
-  // Create a nested form for the question dialog
-  const form = useForm<QuestionValues>({
+// Separate component for the question form to isolate form context
+function QuestionFormDialog({
+  isOpen,
+  onClose,
+  onSubmit,
+  editingQuestion,
+  isEditing,
+}: {
+  isOpen: boolean
+  onClose: () => void
+  onSubmit: (values: QuestionValues) => void
+  editingQuestion?: any
+  isEditing: boolean
+}) {
+  // Create an isolated form for the question dialog
+  const questionForm = useForm<QuestionValues>({
     resolver: zodResolver(questionSchema),
     defaultValues: {
       question_type: "multiple-choice",
@@ -71,273 +76,289 @@ export function QuizQuestionsStep({ addQuestion, updateQuestion, removeQuestion 
     },
   })
 
-  const questionType = form.watch("question_type")
+  const questionType = questionForm.watch("question_type")
 
   // Reset form when question type changes
   useEffect(() => {
     if (questionType === "true-false") {
-      form.setValue("options", [
+      questionForm.setValue("options", [
         { option_text: "True", is_correct: false },
         { option_text: "False", is_correct: false },
       ])
     }
-  }, [questionType, form])
+  }, [questionType, questionForm])
 
-  function onSubmit(values: QuestionValues) {
-    if (editingIndex !== null) {
-      updateQuestion(editingIndex, values)
-    } else {
-      addQuestion(values)
+  // Initialize form with editing data
+  useEffect(() => {
+    if (isEditing && editingQuestion) {
+      if (editingQuestion.question_type === "true-false") {
+        const trueOption = editingQuestion.options.find((o: any) => o.option_text.toLowerCase() === "true") || {
+          option_text: "True",
+          is_correct: false,
+        }
+        const falseOption = editingQuestion.options.find((o: any) => o.option_text.toLowerCase() === "false") || {
+          option_text: "False",
+          is_correct: false,
+        }
+
+        questionForm.reset({
+          question_type: editingQuestion.question_type,
+          question_text: editingQuestion.question_text,
+          explanation: editingQuestion.explanation || "",
+          points: editingQuestion.points,
+          options: [trueOption, falseOption],
+        })
+      } else {
+        questionForm.reset({
+          question_type: editingQuestion.question_type,
+          question_text: editingQuestion.question_text,
+          explanation: editingQuestion.explanation || "",
+          points: editingQuestion.points,
+          options: editingQuestion.options || [],
+        })
+      }
+    } else if (!isEditing) {
+      questionForm.reset({
+        question_type: "multiple-choice",
+        question_text: "",
+        explanation: "",
+        points: 1,
+        options: [
+          { option_text: "", is_correct: false },
+          { option_text: "", is_correct: false },
+        ],
+      })
     }
-    setIsDialogOpen(false)
-    resetForm()
-  }
+  }, [isEditing, editingQuestion, questionForm, isOpen])
 
-  function resetForm() {
-    form.reset({
-      question_type: "multiple-choice",
-      question_text: "",
-      explanation: "",
-      points: 1,
-      options: [
-        { option_text: "", is_correct: false },
-        { option_text: "", is_correct: false },
-      ],
-    })
-    setEditingIndex(null)
+  function handleSubmit(values: QuestionValues) {
+    onSubmit(values)
+    onClose()
   }
 
   function handleAddOption() {
-    const currentOptions = form.getValues("options") || []
-    form.setValue("options", [...currentOptions, { option_text: "", is_correct: false }])
+    const currentOptions = questionForm.getValues("options") || []
+    questionForm.setValue("options", [...currentOptions, { option_text: "", is_correct: false }])
   }
 
   function handleRemoveOption(index: number) {
-    const currentOptions = form.getValues("options") || []
+    const currentOptions = questionForm.getValues("options") || []
     if (currentOptions.length <= 2) return
-    form.setValue(
+    questionForm.setValue(
       "options",
       currentOptions.filter((_, i) => i !== index),
     )
   }
 
+  return (
+    <Dialog open={isOpen} onOpenChange={onClose}>
+      <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto w-[95vw]">
+        <DialogHeader>
+          <DialogTitle>{isEditing ? "Edit Question" : "Add New Question"}</DialogTitle>
+          <DialogDescription>
+            {isEditing
+              ? "Update this question and its options."
+              : "Create a new question for your quiz. Configure the question type, text, and options."}
+          </DialogDescription>
+        </DialogHeader>
+
+        {/* Use FormProvider to create isolated form context */}
+        <FormProvider {...questionForm}>
+          <form onSubmit={questionForm.handleSubmit(handleSubmit)} className="space-y-4 overflow-y-auto">
+            <FormField
+              control={questionForm.control}
+              name="question_type"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Question Type</FormLabel>
+                  <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select question type" />
+                      </SelectTrigger>
+                    </FormControl>
+                    <SelectContent>
+                      <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
+                      <SelectItem value="true-false">True/False</SelectItem>
+                      <SelectItem value="matching">Matching</SelectItem>
+                      <SelectItem value="fill-blank">Fill in the Blank</SelectItem>
+                      <SelectItem value="short-answer">Short Answer</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={questionForm.control}
+              name="question_text"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Question Text</FormLabel>
+                  <FormControl>
+                    <Textarea placeholder="Enter your question" className="min-h-[80px]" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={questionForm.control}
+              name="explanation"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Explanation (Optional)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder="Provide an explanation for the correct answer"
+                      className="min-h-[80px]"
+                      {...field}
+                      value={field.value || ""}
+                    />
+                  </FormControl>
+                  <FormDescription>This will be shown to students after they answer the question.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            <FormField
+              control={questionForm.control}
+              name="points"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Points</FormLabel>
+                  <FormControl>
+                    <Input
+                      type="number"
+                      min={1}
+                      {...field}
+                      onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
+                    />
+                  </FormControl>
+                  <FormDescription>The number of points this question is worth.</FormDescription>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+
+            {(questionType === "multiple-choice" || questionType === "true-false") && (
+              <div className="space-y-4">
+                <div className="flex justify-between items-center">
+                  <FormLabel>Options</FormLabel>
+                  {questionType === "multiple-choice" && (
+                    <Button type="button" variant="outline" size="sm" onClick={handleAddOption}>
+                      <Plus className="h-4 w-4 mr-1" /> Add Option
+                    </Button>
+                  )}
+                </div>
+
+                {questionForm.getValues("options")?.map((_, index) => (
+                  <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
+                    <FormField
+                      control={questionForm.control}
+                      name={`options.${index}.is_correct`}
+                      render={({ field }) => (
+                        <FormItem className="flex items-center space-x-2 space-y-0">
+                          <FormControl>
+                            <Checkbox checked={field.value} onCheckedChange={field.onChange} />
+                          </FormControl>
+                        </FormItem>
+                      )}
+                    />
+
+                    <FormField
+                      control={questionForm.control}
+                      name={`options.${index}.option_text`}
+                      render={({ field }) => (
+                        <FormItem className="flex-1">
+                          <FormControl>
+                            <Input placeholder="Option text" {...field} disabled={questionType === "true-false"} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+
+                    {questionType === "multiple-choice" && questionForm.getValues("options").length > 2 && (
+                      <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveOption(index)}>
+                        <Trash className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
+              <Button type="button" variant="outline" onClick={onClose}>
+                Cancel
+              </Button>
+              <Button type="submit">{isEditing ? "Update Question" : "Add Question"}</Button>
+            </DialogFooter>
+          </form>
+        </FormProvider>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+export function QuizQuestionsStep({ addQuestion, updateQuestion, removeQuestion }: QuizQuestionsStepProps) {
+  // Access the parent form context
+  const parentForm = useFormContext()
+  const questions = parentForm.watch("questions") || []
+
+  const [isDialogOpen, setIsDialogOpen] = useState(false)
+  const [editingIndex, setEditingIndex] = useState<number | null>(null)
+  const [editingQuestion, setEditingQuestion] = useState<any>(null)
+
+  function handleSubmit(values: QuestionValues) {
+    if (editingIndex !== null) {
+      updateQuestion(editingIndex, values)
+    } else {
+      addQuestion(values)
+    }
+    resetForm()
+  }
+
+  function resetForm() {
+    setEditingIndex(null)
+    setEditingQuestion(null)
+  }
+
   function handleEditQuestion(index: number) {
     const question = questions[index]
-
-    // Set form values based on question type
-    if (question.question_type === "true-false") {
-      // Ensure true-false questions have exactly two options: True and False
-      const trueOption = question.options.find((o: any) => o.option_text.toLowerCase() === "true") || {
-        option_text: "True",
-        is_correct: false,
-        ...(question.options[0]?.id ? { id: question.options[0].id } : {}),
-      }
-
-      const falseOption = question.options.find((o: any) => o.option_text.toLowerCase() === "false") || {
-        option_text: "False",
-        is_correct: false,
-        ...(question.options[1]?.id ? { id: question.options[1].id } : {}),
-      }
-
-      form.reset({
-        question_type: question.question_type,
-        question_text: question.question_text,
-        explanation: question.explanation || "",
-        points: question.points,
-        options: [trueOption, falseOption],
-      })
-    } else {
-      // For other question types, use the options as is
-      form.reset({
-        question_type: question.question_type,
-        question_text: question.question_text,
-        explanation: question.explanation || "",
-        points: question.points,
-        options: question.options || [],
-      })
-    }
-
+    setEditingQuestion(question)
     setEditingIndex(index)
     setIsDialogOpen(true)
+  }
+
+  function handleAddQuestion() {
+    resetForm()
+    setIsDialogOpen(true)
+  }
+
+  function handleCloseDialog() {
+    setIsDialogOpen(false)
+    resetForm()
   }
 
   return (
     <div className="space-y-6">
       <div className="flex justify-between items-center">
         <h3 className="text-lg font-medium">Quiz Questions</h3>
-        <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-          <DialogTrigger asChild>
-            <Button
-              onClick={() => {
-                resetForm()
-                setIsDialogOpen(true)
-              }}
-            >
-              <Plus className="mr-2 h-4 w-4" />
-              Add Question
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto w-[95vw]">
-            <DialogHeader>
-              <DialogTitle>{editingIndex !== null ? "Edit Question" : "Add New Question"}</DialogTitle>
-              <DialogDescription>
-                {editingIndex !== null
-                  ? "Update this question and its options."
-                  : "Create a new question for your quiz. Configure the question type, text, and options."}
-              </DialogDescription>
-            </DialogHeader>
-            {/* This is a nested form separate from the parent form */}
-            <Form {...form}>
-              <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 overflow-y-auto">
-                <FormField
-                  control={form.control}
-                  name="question_type"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Question Type</FormLabel>
-                      <Select onValueChange={field.onChange} defaultValue={field.value}>
-                        <FormControl>
-                          <SelectTrigger>
-                            <SelectValue placeholder="Select question type" />
-                          </SelectTrigger>
-                        </FormControl>
-                        <SelectContent>
-                          <SelectItem value="multiple-choice">Multiple Choice</SelectItem>
-                          <SelectItem value="true-false">True/False</SelectItem>
-                          <SelectItem value="matching">Matching</SelectItem>
-                          <SelectItem value="fill-blank">Fill in the Blank</SelectItem>
-                          <SelectItem value="short-answer">Short Answer</SelectItem>
-                        </SelectContent>
-                      </Select>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="question_text"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Question Text</FormLabel>
-                      <FormControl>
-                        <Textarea placeholder="Enter your question" className="min-h-[80px]" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="explanation"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Explanation (Optional)</FormLabel>
-                      <FormControl>
-                        <Textarea
-                          placeholder="Provide an explanation for the correct answer"
-                          className="min-h-[80px]"
-                          {...field}
-                          value={field.value || ""}
-                        />
-                      </FormControl>
-                      <FormDescription>This will be shown to students after they answer the question.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="points"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Points</FormLabel>
-                      <FormControl>
-                        <Input
-                          type="number"
-                          min={1}
-                          {...field}
-                          onChange={(e) => field.onChange(Number.parseInt(e.target.value) || 1)}
-                        />
-                      </FormControl>
-                      <FormDescription>The number of points this question is worth.</FormDescription>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                {(questionType === "multiple-choice" || questionType === "true-false") && (
-                  <div className="space-y-4">
-                    <div className="flex justify-between items-center">
-                      <FormLabel>Options</FormLabel>
-                      {questionType === "multiple-choice" && (
-                        <Button type="button" variant="outline" size="sm" onClick={handleAddOption}>
-                          <Plus className="h-4 w-4 mr-1" /> Add Option
-                        </Button>
-                      )}
-                    </div>
-
-                    {form.getValues("options")?.map((_, index) => (
-                      <div key={index} className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
-                        <FormField
-                          control={form.control}
-                          name={`options.${index}.is_correct`}
-                          render={({ field }) => (
-                            <FormItem className="flex items-center space-x-2 space-y-0">
-                              <FormControl>
-                                <Checkbox checked={field.value} onCheckedChange={field.onChange} />
-                              </FormControl>
-                            </FormItem>
-                          )}
-                        />
-
-                        <FormField
-                          control={form.control}
-                          name={`options.${index}.option_text`}
-                          render={({ field }) => (
-                            <FormItem className="flex-1">
-                              <FormControl>
-                                <Input placeholder="Option text" {...field} disabled={questionType === "true-false"} />
-                              </FormControl>
-                              <FormMessage />
-                            </FormItem>
-                          )}
-                        />
-
-                        {questionType === "multiple-choice" && form.getValues("options").length > 2 && (
-                          <Button type="button" variant="ghost" size="icon" onClick={() => handleRemoveOption(index)}>
-                            <Trash className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-
-                <DialogFooter className="flex-col sm:flex-row gap-2 sm:gap-0">
-                  <Button type="button" variant="outline" onClick={() => setIsDialogOpen(false)}>
-                    Cancel
-                  </Button>
-                  <Button type="submit">{editingIndex !== null ? "Update Question" : "Add Question"}</Button>
-                </DialogFooter>
-              </form>
-            </Form>
-          </DialogContent>
-        </Dialog>
+        <Button onClick={handleAddQuestion}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Question
+        </Button>
       </div>
 
       {questions.length === 0 ? (
         <div className="flex flex-col items-center justify-center p-8 border border-dashed rounded-lg">
           <p className="text-muted-foreground mb-4">No questions added yet</p>
-          <Button
-            variant="outline"
-            onClick={() => {
-              resetForm()
-              setIsDialogOpen(true)
-            }}
-          >
+          <Button variant="outline" onClick={handleAddQuestion}>
             <Plus className="mr-2 h-4 w-4" />
             Add Your First Question
           </Button>
@@ -394,6 +415,14 @@ export function QuizQuestionsStep({ addQuestion, updateQuestion, removeQuestion 
           ))}
         </div>
       )}
+
+      <QuestionFormDialog
+        isOpen={isDialogOpen}
+        onClose={handleCloseDialog}
+        onSubmit={handleSubmit}
+        editingQuestion={editingQuestion}
+        isEditing={editingIndex !== null}
+      />
     </div>
   )
 }
